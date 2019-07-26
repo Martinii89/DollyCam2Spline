@@ -8,12 +8,19 @@
 #include "interpstrategies/interpstrategy.h"
 #include "bakkesmod\wrappers\includes.h"
 
+
+struct FrameUpdate
+{
+	int oldFrame;
+	int newFrame;
+};
+
+
 class DollyCam
 {
 private:
 	std::shared_ptr<savetype> currentPath;
 	std::shared_ptr<GameWrapper> gameWrapper;
-	std::shared_ptr<CVarManagerWrapper> cvarManager;
 	std::shared_ptr<IGameApplier> gameApplier;
 	std::shared_ptr<InterpStrategy> locationInterpStrategy;
 	std::shared_ptr<InterpStrategy> rotationInterpStrategy;
@@ -27,6 +34,7 @@ private:
 	void CheckIfSameInterp();
 
 public:
+	std::shared_ptr<CVarManagerWrapper> cvarManager;
 	DollyCam(std::shared_ptr<GameWrapper> _gameWrapper, std::shared_ptr<CVarManagerWrapper> _cvarManager, std::shared_ptr<IGameApplier> _gameApplier);
 	~DollyCam();
 
@@ -41,7 +49,7 @@ public:
 	bool IsFrameUsed(int frame);
 	CameraSnapshot GetSnapshot(int frame);
 	void DeleteFrameByIndex(int frame);
-	bool ChangeFrame(int oldFrame, int newFrame);
+	void ChangeFrame(int oldFrame, int newFrame);
 	vector<int> GetUsedFrames();
 	void SetRenderPath(bool render);
 	void SetRenderFrames(bool renderFrames);

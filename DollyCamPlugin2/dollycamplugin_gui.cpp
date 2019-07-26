@@ -1,6 +1,7 @@
 #include "dollycamplugin.h"
 #include "imgui\imgui.h"
 #include "imgui\imgui_internal.h"
+#include "imgui\imgui_timeline.h"
 #include "serialization.h"
 #include "bakkesmod\..\\utils\parser.h"
 #include <functional>
@@ -8,6 +9,20 @@
 
 namespace Columns
 {
+	bool IsItemActiveLastFrame()
+	{
+		ImGuiContext& g = *GImGui;
+		if (g.ActiveIdPreviousFrame)
+			return g.ActiveIdPreviousFrame == g.CurrentWindow->DC.LastItemId;
+		return false;
+	}
+
+
+	bool IsItemJustMadeInactive()
+	{
+		return IsItemActiveLastFrame() && !ImGui::IsItemActive();
+	}
+
 	struct TableColumns
 	{
 		string header;
@@ -29,15 +44,35 @@ namespace Columns
 			}
 		}
 	};
+
+	auto frameWidget = [](std::shared_ptr<DollyCam> dollyCam, CameraSnapshot snap, int i) {
+		int frame = snap.frame;
+		static int newValue;
+		string widgetIdentifier = "##" + to_string(i);
+		if (ImGui::DragInt(widgetIdentifier.c_str(), &frame))
+		{
+			newValue = frame;
+		}
+		if (IsItemJustMadeInactive())
+		{
+			if (newValue != snap.frame)
+			{
+				dollyCam->cvarManager->log("Change frame");
+				dollyCam->ChangeFrame(snap.frame, newValue);
+
+			}
+		}
+	};
+
 	auto noWidget = [](std::shared_ptr<DollyCam> dollyCam, CameraSnapshot snap, int i) {};
 	vector< TableColumns > column {
 		{"#",			25,		true, false, [](CameraSnapshot snap, int i) {return to_string(i); },								noWidget},
-		{"Frame",		40,		true, false, [](CameraSnapshot snap, int i) {return to_string(snap.frame); },						noWidget},
+		{"Frame",		40,		true, true,  [](CameraSnapshot snap, int i) {return to_string(snap.frame); },						frameWidget},
 		{"Time",		60,		true, false, [](CameraSnapshot snap, int i) {return to_string_with_precision(snap.timeStamp, 2); }, noWidget},
 		{"Location",	200,	true, false, [](CameraSnapshot snap, int i) {return vector_to_string(snap.location); },				noWidget},
 		{"Rotation",	140,	true, false, [](CameraSnapshot snap, int i) {return rotator_to_string(snap.rotation.ToRotator()); },noWidget},
 		{"FOV",			40,		true, false, [](CameraSnapshot snap, int i) {return to_string_with_precision(snap.FOV, 1); },		noWidget},
-		{"Remove",		80,		true, true, [](CameraSnapshot snap, int i) {return ""; },
+		{"Remove",		80,		true, true,  [](CameraSnapshot snap, int i) {return ""; },
 			[](std::shared_ptr<DollyCam> dollyCam, CameraSnapshot snap, int i) {
 				string buttonIdentifier = "Remove##" + to_string(i);
 				if (ImGui::Button(buttonIdentifier.c_str()))
@@ -47,6 +82,7 @@ namespace Columns
 			}}
 	};
 }
+
 
 
 void DollyCamPlugin::Render()
@@ -116,6 +152,43 @@ void DollyCamPlugin::Render()
 	}
 
 	ImGui::EndChild();
+
+	if (gameWrapper->IsInReplay())
+	{
+		auto replayServer = gameWrapper->GetGameEventAsReplay();
+		auto replay = replayServer.GetReplay();
+		//auto totalReplayTime = replayServer.GetReplay().GetReplayTimeSeconds();
+		auto totalReplayTime = replay.GetNumFrames();
+
+		//cvarManager->log("Total Replay time:" + to_string(totalReplayTime));
+		ImGui::BeginTimeline("test", totalReplayTime);
+		static float currentFrame = 0.0f;
+		static float seekFrame = 0.0f;
+
+		if (ImGui::TimelineMarker("test2", currentFrame))
+		{
+			//cvarManager->log("Seek to:" + to_string(currentFrame));
+			seekFrame = currentFrame;
+		}
+		else {
+			currentFrame = replay.GetCurrentFrame();
+		}
+		if (Columns::IsItemJustMadeInactive())
+		{
+			int _frame = seekFrame; //lambda can't capture static
+			gameWrapper->Execute([_frame, this](GameWrapper* gw) {
+				gw->GetGameEventAsReplay().SkipToFrame(_frame);
+				cvarManager->log("got this frame:" + to_string(gw->GetGameEventAsReplay().GetCurrentReplayFrame()));
+				
+			});
+			cvarManager->log("Seek to:" + to_string(seekFrame));
+			//frameSkip = seekFrame;
+		}
+		ImGui::EndTimeline();
+
+	}
+
+
 	ImGui::End();
 
 	if (!isWindowOpen)

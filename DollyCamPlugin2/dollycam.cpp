@@ -7,6 +7,7 @@
 #include "interpstrategies\supportedstrategies.h"
 #include "serialization.h"
 
+using namespace std::placeholders;
 
 void DollyCam::UpdateRenderPath()
 {
@@ -232,26 +233,27 @@ void DollyCam::DeleteFrameByIndex(int index)
 	this->RefreshInterpDataRotation();
 }
 
-bool DollyCam::ChangeFrame(const int oldFrame, const int newFrame)
+void DollyCam::ChangeFrame(const int oldFrame, const int newFrame)
 {
-	const auto it = currentPath->find(oldFrame);
-	if (it != currentPath->end())
-	{
-		currentPath->erase(it);
+	gameWrapper->Execute([oldFrame, newFrame, this](GameWrapper* gw) {
+		const auto it = currentPath->find(oldFrame);
+		if (it != currentPath->end())
+		{
+			currentPath->erase(it);
 
-		ReplayServerWrapper sw = gameWrapper->GetGameEventAsReplay();
-		auto replay = sw.GetReplay();
-		replay.SetCurrentFrame(newFrame);
-		auto newTimestamp = sw.GetReplayTimeElapsed();
-
-		it->second.frame = newFrame;
-		it->second.timeStamp = newTimestamp;
-		InsertSnapshot(it->second);
-
-		return true;
-	}
-	return false;
-
+			ReplayServerWrapper replayServer = gameWrapper->GetGameEventAsReplay();
+			auto replay = replayServer.GetReplay();
+			cvarManager->log("Old timestamp:" + to_string(it->second.timeStamp));
+			cvarManager->log("Old frame:" + to_string(it->second.frame));
+			gw->GetGameEventAsReplay().SkipToFrame(newFrame);
+			cvarManager->log("New timestamp:" + to_string(replayServer.GetReplayTimeElapsed()));
+			cvarManager->log("New frame:" + to_string(replayServer.GetCurrentReplayFrame()));
+			auto newTimestamp = replayServer.GetReplayTimeElapsed();
+			it->second.frame = newFrame;
+			it->second.timeStamp = newTimestamp;
+			InsertSnapshot(it->second);
+		}
+	});
 
 }
 
