@@ -274,13 +274,20 @@ void DollyCam::SetRenderFrames(bool _renderFrames)
 {
 	this->renderFrames = _renderFrames;
 }
-
+inline float Dot(Rotator rot, Vector line)
+{
+	Vector fov = RotatorToVector(rot);
+	return Vector::dot(fov, line);
+}
 void DollyCam::Render(CanvasWrapper cw)
 {
 	if (!renderPath || !currentRenderPath || currentRenderPath->size() < 2)
 		return;
 
 	ReplayServerWrapper sw = gameWrapper->GetGameEventAsReplay();
+	CameraWrapper cam = gameWrapper->GetCamera();
+	auto location = cam.GetLocation();
+	auto rotation = cam.GetRotation();
 	int currentFrame = sw.GetCurrentReplayFrame();
 
 	Vector2 prevLine = cw.Project(currentRenderPath->begin()->second.location);
@@ -305,18 +312,24 @@ void DollyCam::Render(CanvasWrapper cw)
 		line.X = min(line.X, canvasSize.X);
 		line.Y = max(0, line.Y);
 		line.Y = min(line.Y, canvasSize.Y);
-		if (!(((line.X < .1 || line.X >= canvasSize.X - .5) && (line.Y < .1 || line.Y >= canvasSize.Y - .5)) || ((prevLine.X < .1 || prevLine.X >= canvasSize.X - .5) && (prevLine.Y < .1 || prevLine.Y >= canvasSize.Y - .5))))
-		{
-			cw.DrawLine(prevLine, line);
-			cw.DrawLine(prevLine.minus({ 1,1 }), line.minus({ 1,1 })); //make lines thicker
-			cw.DrawLine(prevLine.minus({ -1,-1 }), line.minus({ -1,-1 }));
-			if (renderFrames) {
-				cw.SetColor(0, 0, 0, 255);
-				cw.SetPosition(line);
-				cw.DrawString(to_string(it->first));
+		bool inFrustum = false;
+		Vector cam_to_line = (it->second.location - location);
+		cam_to_line.normalize();
+		float cam_dot_line = Dot(rotation, cam_to_line);
+		if (cam_dot_line > 0) inFrustum = true;
+		if (inFrustum) {
+			if (!(((line.X < .1 || line.X >= canvasSize.X - .5) && (line.Y < .1 || line.Y >= canvasSize.Y - .5)) || ((prevLine.X < .1 || prevLine.X >= canvasSize.X - .5) && (prevLine.Y < .1 || prevLine.Y >= canvasSize.Y - .5))))
+			{
+				cw.DrawLine(prevLine, line);
+				cw.DrawLine(prevLine.minus({ 1,1 }), line.minus({ 1,1 })); //make lines thicker
+				cw.DrawLine(prevLine.minus({ -1,-1 }), line.minus({ -1,-1 }));
+				if (renderFrames) {
+					cw.SetColor(0, 0, 0, 255);
+					cw.SetPosition(line);
+					cw.DrawString(to_string(it->first));
+				}
 			}
 		}
-		
 		prevLine = line;
 	}
 
@@ -324,16 +337,23 @@ void DollyCam::Render(CanvasWrapper cw)
 	for (auto it = currentPath->begin(); it != currentPath->end(); it++)
 	{
 		auto boxLoc = cw.Project(it->second.location);
-		cw.SetColor(255, 0, 0, 255);
-		if (boxLoc.X >= 0 && boxLoc.X <= canvasSize.X && boxLoc.Y >= 0 && boxLoc.Y <= canvasSize.Y) {
-			boxLoc.X -= 5;
-			boxLoc.Y -= 5;
-			cw.SetPosition(boxLoc);
-			auto tmp = Vector2();
-			tmp.X = 10; tmp.Y = 10;
-			cw.FillBox(tmp);
-			cw.SetColor(255, 255, 255, 255);
-			cw.DrawString("(" + to_string(index) + ")" + " (ID:" + to_string(it->first) + ", w:" + to_string_with_precision(it->second.weight, 2) + ")");
+		bool inFrustum = false;
+		Vector cam_to_box = (it->second.location - location);
+		cam_to_box.normalize();
+		float cam_dot_line = Dot(rotation, cam_to_box);
+		if (cam_dot_line > 0) inFrustum = true;
+		if (inFrustum) {
+			cw.SetColor(255, 0, 0, 255);
+			if (boxLoc.X >= 0 && boxLoc.X <= canvasSize.X && boxLoc.Y >= 0 && boxLoc.Y <= canvasSize.Y) {
+				boxLoc.X -= 5;
+				boxLoc.Y -= 5;
+				cw.SetPosition(boxLoc);
+				auto tmp = Vector2();
+				tmp.X = 10; tmp.Y = 10;
+				cw.FillBox(tmp);
+				cw.SetColor(255, 255, 255, 255);
+				cw.DrawString("(" + to_string(index) + ")" + " (ID:" + to_string(it->first) + ", w:" + to_string_with_precision(it->second.weight, 2) + ")");
+			}
 		}
 		index++;
 	}
