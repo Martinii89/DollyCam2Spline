@@ -129,7 +129,11 @@ void DollyCamPlugin::OnAllCommand(vector<string> params)
 			cvarManager->log("Usage: " + params.at(0) + " filename");
 			return;
 		}
-		string filename = params.at(1);
+		if (CreateDirectory("./bakkesmod/dollycam", NULL))
+		{
+			cvarManager->log("Created dollycam directory.");
+		}
+		string filename = "./bakkesmod/dollycam/" + params.at(1);
 		dollyCam->SaveToFile(filename);
 	} 
 	else if (command.compare("dolly_path_load") == 0)
@@ -139,10 +143,11 @@ void DollyCamPlugin::OnAllCommand(vector<string> params)
 			cvarManager->log("Usage: " + params.at(0) + " filename");
 			return;
 		}
-		string filename = params.at(1);
+		string filename = "./bakkesmod/dollycam/" + params.at(1);
 		if (!file_exists(filename))
 		{
 			cvarManager->log("File does not exist!");
+			cvarManager->log(filename);
 			return;
 		}
 		dollyCam->LoadFromFile(filename);
